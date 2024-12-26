@@ -5,7 +5,7 @@ Un script FiveM avancé permettant la reprogrammation moteur des véhicules avec
 
 ## 📺 Aperçu
 Une vidéo présentation du script sur ma chaîne Youtube.
-[Watch on YouTube](https://youtu.be/z5v_-WWEmcQ)
+[Regarder sur Youtube](https://youtu.be/z5v_-WWEmcQ)
 
 ## ✨ Fonctionnalités
 
@@ -106,4 +106,4 @@ Intégration ESX
 
 Pour toute question ou problème :
 - Créez une issue sur GitHub
-- Contactez-nous sur le Discord [(lien à venir)](https://discord.gg/SQK49qBUJU)
+- Contactez-nous sur le Discord [(lien)](https://discord.gg/SQK49qBUJU)
