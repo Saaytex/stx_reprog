@@ -44,7 +44,7 @@ Une vidéo présentation du script sur ma chaîne Youtube.
 
 1. Assurez-vous d'avoir les dépendances requises :
    - es_extended
-   - mysql-async
+   - ox_mysql
 
 2. Copiez le dossier dans votre dossier `resources`
 
