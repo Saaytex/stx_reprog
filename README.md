@@ -54,7 +54,7 @@ Une vidéo présentation du script sur ma chaîne Youtube.
 ensure stx_reprog
 ```
 
-4. Ajoutez a `ox_inventory` dans 'ox_inventory\data\items' :
+4. Ajoutez à `ox_inventory` dans 'ox_inventory\data\items' :
 ```
 	['reprog_box'] = {
 		label = 'Boitier de reprogrammation',
