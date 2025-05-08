@@ -322,29 +322,61 @@ AddEventHandler('reprog:updateSavedMaps', function(maps)
 end)
 
 RegisterNUICallback('deleteMap', function(data, cb)
-    TriggerServerEvent('reprog:deleteMap', data.id)
-    cb({})
+    if not data.id then
+        print("^1[REPROG:CLIENT:DEBUG] Erreur: ID manquant pour la suppression^7")
+        return cb({success = false, error = "ID manquant"})
+    end
+    
+    local mapId = tonumber(data.id)
+    if not mapId or mapId == 0 then
+        print("^1[REPROG:CLIENT:DEBUG] Erreur: ID invalide pour la suppression: " .. tostring(data.id) .. " (type: " .. type(data.id) .. ")^7")
+        return cb({success = false, error = "ID invalide"})
+    end
+    
+    print("^3[REPROG:CLIENT:DEBUG] Tentative de suppression de la map ID: " .. mapId .. "^7")
+    TriggerServerEvent('reprog:deleteMap', mapId)
+    cb({success = true})
 end)
 
 RegisterNetEvent('reprog:deleteSuccess')
 AddEventHandler('reprog:deleteSuccess', function()
+    print("^2[REPROG:CLIENT:DEBUG] Réception de l'événement deleteSuccess^7")
+    -- Attendre un court instant pour s'assurer que la suppression est terminée côté serveur
+    Citizen.Wait(500)
     -- Demander une mise à jour des configurations
     TriggerServerEvent('reprog:requestMaps')
 end)
 
 RegisterNUICallback('loadMap', function(data, cb)
-    if data.id then
-        TriggerServerEvent('reprog:loadMap', data.id)
+    if not data.id then
+        print("^1[REPROG:CLIENT:DEBUG] Erreur: ID manquant pour le chargement^7")
+        return cb({success = false, error = "ID manquant"})
     end
-    cb({})
+    
+    local mapId = tonumber(data.id)
+    if not mapId or mapId == 0 then
+        print("^1[REPROG:CLIENT:DEBUG] Erreur: ID invalide pour le chargement: " .. tostring(data.id) .. " (type: " .. type(data.id) .. ")^7")
+        return cb({success = false, error = "ID invalide"})
+    end
+    
+    print("^3[REPROG:CLIENT:DEBUG] Tentative de chargement de la map ID: " .. mapId .. "^7")
+    TriggerServerEvent('reprog:loadMap', mapId)
+    cb({success = true})
 end)
 
 RegisterNetEvent('reprog:loadConfig')
 AddEventHandler('reprog:loadConfig', function(config)
+    print("^2[REPROG:CLIENT:DEBUG] Réception de la configuration: " .. json.encode(config) .. "^7")
     SendNUIMessage({
         type = 'loadConfig',
         config = config
     })
+end)
+
+RegisterNetEvent('reprog:notification')
+AddEventHandler('reprog:notification', function(message, type)
+    print("^3[REPROG:CLIENT:DEBUG] Notification reçue: " .. message .. " (type: " .. type .. ")^7")
+    ShowNotification(message, type)
 end)
 
 -- Boucles principales

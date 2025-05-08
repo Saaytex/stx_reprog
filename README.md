@@ -45,12 +45,23 @@ Une vidéo présentation du script sur ma chaîne Youtube.
 1. Assurez-vous d'avoir les dépendances requises :
    - es_extended
    - ox_mysql
+   - ox_inventory
 
 2. Copiez le dossier dans votre dossier `resources`
 
 3. Ajoutez au `server.cfg` :
 ```cfg
 ensure stx_reprog
+```
+
+4. Ajoutez a `ox_inventory` dans 'ox_inventory\data\items' :
+```
+	['reprog_box'] = {
+		label = 'Boitier de reprogrammation',
+		weight = 100,
+		stack = true,
+		close = true,
+	},
 ```
 
 ## ⚙️ Configuration

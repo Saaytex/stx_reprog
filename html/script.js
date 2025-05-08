@@ -255,18 +255,31 @@ function updateReliabilityGauge(reliability) {
 
 // Gestion des configurations sauvegardées
 function updateSavedMaps(maps) {
-    const container = document.querySelector('.saved-maps');
-    if (!container) return;
-
-    container.innerHTML = '';
+    console.log("Mise à jour des maps sauvegardées:", JSON.stringify(maps));
     
-    if (!maps || Object.keys(maps).length === 0) {
-        container.innerHTML = '<div class="no-saves">Aucune configuration sauvegardée</div>';
+    const container = document.querySelector('.saved-maps');
+    if (!container) {
+        console.error("Conteneur des maps non trouvé");
         return;
     }
 
-    Object.entries(maps).forEach(([id, map]) => {
-        if (!map) return;
+    container.innerHTML = '';
+    
+    if (!maps || !Array.isArray(maps) || maps.length === 0) {
+        console.log("Aucune map à afficher");
+        container.innerHTML = '<div class="no-saves">Aucune configuration sauvegardée</div>';
+        return;
+    }
+    
+    // Parcourir le tableau de maps
+    maps.forEach(map => {
+        if (!map || !map.id) {
+            console.warn("Map invalide:", map);
+            return;
+        }
+        
+        const mapId = parseInt(map.id);
+        console.log(`Création de la carte pour map ID=${mapId}, nom=${map.name}`);
         
         const element = document.createElement('div');
         element.className = 'preset-card';
@@ -274,18 +287,47 @@ function updateSavedMaps(maps) {
             <div class="config-info">
                 <h3>${map.name || 'Sans nom'}</h3>
                 <p>Points: ${map.totalPoints || 0}/50</p>
+                <small>ID: ${mapId}</small>
             </div>
             <div class="actions">
-                <button class="button" onclick="loadMap('${id}')">CHARGER</button>
-                <button class="button delete-btn" onclick="deleteMap('${id}')">SUPPRIMER</button>
+                <button class="button load-btn">CHARGER</button>
+                <button class="button delete-btn">SUPPRIMER</button>
             </div>
         `;
+        
+        // Ajouter des écouteurs d'événements avec l'ID comme closure
+        const loadBtn = element.querySelector('.load-btn');
+        loadBtn.addEventListener('click', function() {
+            console.log(`Chargement de la map ID=${mapId}`);
+            $.post(`https://${GetParentResourceName()}/loadMap`, JSON.stringify({
+                id: mapId
+            }));
+        });
+        
+        const deleteBtn = element.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', function() {
+            console.log(`Suppression de la map ID=${mapId}`);
+            $.post(`https://${GetParentResourceName()}/deleteMap`, JSON.stringify({
+                id: mapId
+            }));
+            
+            showNotification('Configuration supprimée', 'success');
+            
+            // Demander une mise à jour après un court délai
+            setTimeout(() => {
+                requestSavedMaps();
+            }, 500);
+        });
+        
         container.appendChild(element);
     });
 }
 
 function requestSavedMaps() {
-    $.post(`https://${GetParentResourceName()}/requestSavedMaps`)
+    console.log("Demande des maps sauvegardées au serveur");
+    $.post(`https://${GetParentResourceName()}/requestSavedMaps`, {}, function() {
+        console.log("Requête des maps envoyée");
+    });
 }
 
 // Events handlers
@@ -321,15 +363,6 @@ window.addEventListener('message', (event) => {
             }
             break;
 
-        case 'loadConfig':
-            if (data.config && data.config.params) {
-                updateSlidersFromConfig(data.config.params);
-                showNotification('Configuration chargée', 'success');
-                document.querySelector('.tab-btn[data-tab="manual"]').click();
-            }
-            break;
-
-
         case 'updateStats':
             if (typeof data.temperature !== 'undefined') {
                 updateTemperatureGauge(data.temperature);
@@ -357,36 +390,6 @@ function updateAllStats(data) {
     if (data.reliability !== undefined) updateReliabilityGauge(data.reliability);
     if (data.points !== undefined) updateAllPointsDisplays();
 }
-
-// Fonctions globales pour les handlers onclick
-window.loadMap = async (id) => {
-    try {
-        
-        $.post(`https://${GetParentResourceName()}/loadMap`, JSON.stringify({
-            id: parseInt(id)
-        }))
-    } catch (error) {
-        console.error('Erreur lors du chargement:', error);
-        showNotification('Erreur lors du chargement', 'error');
-    }
-};
-
-window.deleteMap = async (id) => {
-    try {
-        
-        $.post(`https://${GetParentResourceName()}/deleteMap`, JSON.stringify({
-            id: id
-        }));
-        
-        showNotification('Configuration supprimée', 'success');
-        
-        // Demander une mise à jour des configurations
-        $.post(`https://${GetParentResourceName()}/requestSavedMaps`, '{}');
-    } catch (error) {
-        console.error('Erreur lors de la suppression:', error);
-        showNotification('Erreur lors de la suppression', 'error');
-    }
-};
 
 // Gestion des notifications
 function showNotification(message, type = 'info') {

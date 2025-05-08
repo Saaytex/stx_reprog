@@ -38,6 +38,9 @@ MySQL.ready(function()
                     end)
                 end
             end)
+            
+            -- Charger les maps existantes en mémoire
+            LoadSavedMaps()
         else
             print("^1[ERROR] Erreur lors de la vérification/création de la table vehicle_maps^7")
         end
@@ -127,19 +130,51 @@ AddEventHandler('reprog:saveMap', function(data)
     end)
 end)
 
+-- Fonction pour récupérer les configurations d'un joueur
 function GetPlayerMaps(identifier)
     local playerMaps = {}
-    for id, map in pairs(savedMaps) do
-        if map.identifier == identifier then
-            playerMaps[id] = {
-                name = map.name,
-                params = map.params,
-                totalPoints = map.totalPoints or 0
-            }
+    
+    -- Récupérer directement depuis la base de données pour être sûr d'avoir les données les plus récentes
+    local results = MySQL.Sync.fetchAll('SELECT * FROM vehicle_maps WHERE identifier = ?', {identifier})
+    
+    if results and #results > 0 then
+        for _, map in ipairs(results) do
+            local mapId = tonumber(map.id)
+            if mapId then
+                local params = json.decode(map.params)
+                if params then
+                    -- Utilisation d'un tableau de tables pour éviter les problèmes de sérialisation
+                    table.insert(playerMaps, {
+                        id = mapId,
+                        name = map.name,
+                        params = params,
+                        totalPoints = map.totalPoints,
+                        timestamp = map.timestamp
+                    })
+                    
+                    -- Mettre à jour les savedMaps en mémoire
+                    savedMaps[mapId] = {
+                        name = map.name,
+                        identifier = map.identifier,
+                        params = params,
+                        totalPoints = map.totalPoints,
+                        timestamp = map.timestamp
+                    }
+                end
+            end
         end
     end
+    
     return playerMaps
 end
+
+-- Événement de vérification de l'item
+ESX.RegisterUsableItem('reprog_box', function(source)
+    local xPlayer = ESX.GetPlayerFromId(source)
+    if xPlayer then
+        TriggerClientEvent('reprog:checkVehicle', source)
+    end
+end)
 
 -- Chargement d'une configuration
 RegisterNetEvent('reprog:loadMap')
@@ -149,8 +184,25 @@ AddEventHandler('reprog:loadMap', function(mapId)
     
     if not xPlayer then return end
     
+    -- Vérification de l'ID
+    if not mapId then
+        print("^1[REPROG:SERVER:DEBUG] Erreur: ID de map non fourni^7")
+        TriggerClientEvent('reprog:notification', source, 'ID de configuration manquant', 'error')
+        return
+    end
+    
+    -- Conversion en nombre
+    local id = tonumber(mapId)
+    if not id or id == 0 then
+        print("^1[REPROG:SERVER:DEBUG] Erreur: ID de map invalide: " .. tostring(mapId) .. " (type: " .. type(mapId) .. ")^7")
+        TriggerClientEvent('reprog:notification', source, 'ID de configuration invalide', 'error')
+        return
+    end
+    
+    print("^3[REPROG:SERVER:DEBUG] Chargement map ID: " .. id .. " pour " .. xPlayer.identifier .. "^7")
+    
     MySQL.Async.fetchAll('SELECT * FROM vehicle_maps WHERE id = ? AND identifier = ?', {
-        mapId,
+        id,
         xPlayer.identifier
     }, function(results)
         if results and #results > 0 then
@@ -160,9 +212,11 @@ AddEventHandler('reprog:loadMap', function(mapId)
                 totalPoints = map.totalPoints
             }
             
+            print("^2[REPROG:SERVER:DEBUG] Map trouvée et envoyée au client^7")
             TriggerClientEvent('reprog:loadConfig', source, config)
             TriggerClientEvent('reprog:notification', source, 'Configuration chargée', 'success')
         else
+            print("^1[REPROG:SERVER:DEBUG] Map non trouvée en base de données^7")
             TriggerClientEvent('reprog:notification', source, 'Configuration introuvable', 'error')
         end
     end)
@@ -174,14 +228,37 @@ AddEventHandler('reprog:deleteMap', function(mapId)
     local source = source
     local xPlayer = ESX.GetPlayerFromId(source)
     
-    if not xPlayer then return end
+    if not xPlayer then 
+        print("^1[REPROG:DEBUG] Erreur: Joueur introuvable pour la suppression de map^7")
+        return 
+    end
+
+    -- Vérification de l'ID
+    if not mapId then
+        print("^1[REPROG:SERVER:DEBUG] Erreur: ID de map non fourni^7")
+        TriggerClientEvent('reprog:notification', source, 'ID de configuration manquant', 'error')
+        return
+    end
+    
+    -- Conversion en nombre
+    local id = tonumber(mapId)
+    if not id or id == 0 then
+        print("^1[REPROG:SERVER:DEBUG] Erreur: ID de map invalide: " .. tostring(mapId) .. " (type: " .. type(mapId) .. ")^7")
+        TriggerClientEvent('reprog:notification', source, 'ID de configuration invalide', 'error')
+        return
+    end
+
+    print("^3[REPROG:DEBUG] Tentative de suppression de la map ID: " .. id .. " pour le joueur: " .. xPlayer.identifier .. "^7")
 
     MySQL.Async.execute('DELETE FROM vehicle_maps WHERE id = ? AND identifier = ?', {
-        mapId,
+        id,
         xPlayer.identifier
     }, function(rowsChanged)
+        print("^3[REPROG:DEBUG] Résultat de la suppression: " .. rowsChanged .. " lignes affectées^7")
+        
         if rowsChanged > 0 then
-            savedMaps[mapId] = nil
+            print("^2[REPROG:DEBUG] Map ID " .. id .. " supprimée avec succès^7")
+            savedMaps[id] = nil
             
             -- Informer le client du succès
             TriggerClientEvent('reprog:deleteSuccess', source)
@@ -190,6 +267,7 @@ AddEventHandler('reprog:deleteMap', function(mapId)
             local playerMaps = GetPlayerMaps(xPlayer.identifier)
             TriggerClientEvent('reprog:updateSavedMaps', source, playerMaps)
         else
+            print("^1[REPROG:DEBUG] Erreur: Aucune ligne supprimée pour la map ID " .. id .. "^7")
             TriggerClientEvent('reprog:notification', source, 'Erreur lors de la suppression', 'error')
         end
     end)
@@ -203,39 +281,7 @@ AddEventHandler('reprog:requestMaps', function()
     
     if xPlayer then
         local playerMaps = GetPlayerMaps(xPlayer.identifier)
+        print("^3[REPROG:SERVER:DEBUG] Envoi des maps au client "..source..": "..json.encode(playerMaps).."^7")
         TriggerClientEvent('reprog:updateSavedMaps', source, playerMaps)
-    end
-end)
-
--- Fonction pour récupérer les configurations d'un joueur
-function GetPlayerMaps(identifier)
-    local playerMaps = {}
-    
-    MySQL.Async.fetchAll('SELECT * FROM vehicle_maps WHERE identifier = ?', {identifier}, 
-        function(results)
-            if results then
-                for _, map in ipairs(results) do
-                    local params = json.decode(map.params)
-                    if params then
-                        playerMaps[map.id] = {
-                            name = map.name,
-                            params = params,
-                            totalPoints = map.totalPoints,
-                            timestamp = map.timestamp
-                        }
-                    end
-                end
-            end
-        end
-    )
-    Wait(100) -- Petit délai pour s'assurer que la requête est terminée
-    return playerMaps
-end
-
--- Événement de vérification de l'item
-ESX.RegisterUsableItem('reprog_box', function(source)
-    local xPlayer = ESX.GetPlayerFromId(source)
-    if xPlayer then
-        TriggerClientEvent('reprog:checkVehicle', source)
     end
 end)
